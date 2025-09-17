@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+S5.CNN-workspace.code-workspace
 
 # Virtual environments
 .venv
