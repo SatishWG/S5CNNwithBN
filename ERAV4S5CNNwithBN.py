@@ -10,23 +10,83 @@ from torchsummary import summary
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
-        self.pool1 = nn.MaxPool2d(2, 2)
-        self.conv3 = nn.Conv2d(64, 128, 3, padding=1)
-        self.conv4 = nn.Conv2d(128, 256, 3, padding=1)
-        self.pool2 = nn.MaxPool2d(2, 2)
-        self.conv5 = nn.Conv2d(256, 512, 3)
-        self.conv6 = nn.Conv2d(512, 1024, 3)
-        self.conv7 = nn.Conv2d(1024, 10, 3)
+        # First Convolution Block
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(1, 8, 3), # input: 28x28x1, output: 26x26x8, RF = 3
+            nn.ReLU(),
+            nn.BatchNorm2d(8),
+            nn.Conv2d(8, 16, 3), # input: 26x26x8, output: 24x24x16, RF = 5
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+            # nn.Conv2d(16, 32, 3), # input: 24x24x16, output: 22x22x32, RF = 7
+            # nn.ReLU(),
+            # nn.BatchNorm2d(32),
+            nn.MaxPool2d(kernel_size=2, stride=2) # output: 12x12x16, 
+        )
+        
+        # Second Convolution Block
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(16, 32, 1), # input: 12x12x16, output: 12x12x32, RF  = 
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            # nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 16, 3), # input: 12x12x32, output: 10x10x16, RF = 18
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+            nn.Conv2d(16, 8, 3), # input: 10x10x16, output: 8x8x8, RF = 18
+            nn.ReLU(),
+            nn.BatchNorm2d(8),            
+            # nn.MaxPool2d(kernel_size=2, stride=2),# output: 5x5x16, RF = 28
+        )
+        
+        # self.conv3 = nn.Sequential(
+        #     nn.Conv2d(16, 8, 1), # input: 12x12x16, output: 12x12x8, RF = 28
+        #     nn.ReLU(),
+        #     # nn.BatchNorm2d(8),
+        #     nn.MaxPool2d(kernel_size=2, stride=2),
+        #     nn.Conv2d(8, 16, 3), # input: 12x12x8, output: 10x10x16, RF = 32
+        #     nn.ReLU(),
+        #     # nn.BatchNorm2d(16),
+        #     # nn.MaxPool2d(kernel_size=2, stride=2) # output: 5x5x16
+        # )
+        # Output Block
+        self.fc = nn.Linear(8*8*8, 10) # 400 -> 10
 
     def forward(self, x):
-        x = self.pool1(F.relu(self.conv2(F.relu(self.conv1(x)))))
-        x = self.pool2(F.relu(self.conv4(F.relu(self.conv3(x)))))
-        x = F.relu(self.conv6(F.relu(self.conv5(x))))
-        x = F.relu(self.conv7(x))
-        x = x.view(-1, 10)
-        return F.log_softmax(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        # x = self.conv3(x)
+        x = x.view(-1, 8*8*8)#16*9*9
+        x = self.fc(x)
+        return F.log_softmax(x, dim=1)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = x.view(-1, 16*5*5)
+        x = self.fc(x)
+        return F.log_softmax(x, dim=1)
+        
+    # def __init__(self):
+    #     super(Net, self).__init__()
+    #     self.conv1 = nn.Conv2d(1, 32, 3, padding=1)
+    #     self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+    #     self.pool1 = nn.MaxPool2d(2, 2)
+    #     self.conv3 = nn.Conv2d(64, 128, 3, padding=1)
+    #     self.conv4 = nn.Conv2d(128, 256, 3, padding=1)
+    #     self.pool2 = nn.MaxPool2d(2, 2)
+    #     self.conv5 = nn.Conv2d(256, 512, 3)
+    #     self.conv6 = nn.Conv2d(512, 1024, 3)
+    #     self.conv7 = nn.Conv2d(1024, 10, 3)
+
+    # def forward(self, x):
+    #     x = self.pool1(F.relu(self.conv2(F.relu(self.conv1(x)))))
+    #     x = self.pool2 = nn.MaxPool2d(2, 2)
+    #     x = self.pool2(F.relu(self.conv4(F.relu(self.conv3(x)))))
+    #     x = self.pool2 = nn.MaxPool2d(2, 2)
+    #     x = self.pool2(F.relu(self.conv6(F.relu(self.conv5(x)))))
+    #     x = F.relu(self.conv6(F.relu(self.conv5(x))))
+    #     x = F.relu(self.conv7(x))
+    #     x = x.view(-1, 10)
+    #     return F.log_softmax(x)
 
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
