@@ -8,63 +8,54 @@ from tqdm import tqdm
 from torchsummary import summary
 import matplotlib.pyplot as plt
 
+BEST_TESTING_ACC = 99.4
+
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         # First Convolution Block
         self.conv1 = nn.Sequential(
-            nn.Conv2d(1, 8, 3), # input: 28x28x1, output: 26x26x8, RF = 3
+            nn.Conv2d(1, 8, 3), # input: 28x28x1, output: 26x26x8,
             nn.ReLU(),
             nn.BatchNorm2d(8),
-            nn.Conv2d(8, 16, 3), # input: 26x26x8, output: 24x24x16, RF = 5
+            nn.Conv2d(8, 16, 3), # input: 26x26x8, output: 24x24x16,
             nn.ReLU(),
             nn.BatchNorm2d(16),
-            # nn.Conv2d(16, 32, 3), # input: 24x24x16, output: 22x22x32, RF = 7
-            # nn.ReLU(),
-            # nn.BatchNorm2d(32),
             nn.MaxPool2d(kernel_size=2, stride=2), # output: 12x12x16, 
             nn.Dropout(0.25)
         )
         
         # Second Convolution Block
         self.conv2 = nn.Sequential(
-            nn.Conv2d(16, 32, 1), # input: 12x12x16, output: 12x12x32, RF  = 
+            nn.Conv2d(16, 32, 1), # input: 12x12x16, output: 12x12x32, 
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            # nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 16, 3), # input: 12x12x32, output: 10x10x16, RF = 18
+            nn.Conv2d(32, 16, 3), # input: 12x12x32, output: 10x10x16, 
             nn.ReLU(),
             nn.BatchNorm2d(16),
-            nn.Conv2d(16, 8, 3), # input: 10x10x16, output: 8x8x8, RF = 18
+            nn.Conv2d(16, 8, 3), # input: 10x10x16, output: 8x8x8, 
             nn.ReLU(),
-            nn.BatchNorm2d(8),            
-            # nn.MaxPool2d(kernel_size=2, stride=2),# output: 5x5x16, RF = 28
+            nn.BatchNorm2d(8),    
             nn.Dropout(0.25)    
         )
         
         self.conv3 = nn.Sequential(
-            nn.Conv2d(8, 16, 1), # input: 8x8x8, output: 8x8x16, RF = 28
+            nn.Conv2d(8, 16, 1), # input: 8x8x8, output: 8x8x16, 
             nn.ReLU(),
             nn.BatchNorm2d(16),
-            nn.Dropout(0.25) ,   
-            nn.Conv2d(16, 8, 3), # input: 8x8x16, output: 6x6x8, RF = 32
+            nn.Conv2d(16, 8, 3), # input: 8x8x16, output: 6x6x8, 
             nn.ReLU(),
             nn.BatchNorm2d(8),
             nn.Dropout(0.25)    
         )
         # Output Block
-        self.fc = nn.Linear(8*6*6, 10) # 400 -> 10
+        self.fc = nn.Linear(8*6*6, 10) # 288 -> 10
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
         x = x.view(-1, 8*6*6)#16*9*9
-        x = self.fc(x)
-        return F.log_softmax(x, dim=1)
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = x.view(-1, 16*5*5)
         x = self.fc(x)
         return F.log_softmax(x, dim=1)
         
@@ -107,12 +98,14 @@ def test(model, device, test_loader):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
+    accuracy = 100. * correct / len(test_loader.dataset)
     test_losses.append(test_loss)
-    test_acc.append(100. * correct / len(test_loader.dataset))
+    test_acc.append(accuracy)
     
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        test_loss, correct, len(test_loader.dataset), accuracy))
+    
+    return accuracy
 
 def plot_metrics():
     fig, axs = plt.subplots(2,2, figsize=(15,10))
@@ -145,7 +138,7 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
     
     torch.manual_seed(1)
-    batch_size = 64
+    batch_size = 128
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
     train_loader = torch.utils.data.DataLoader(
@@ -167,17 +160,28 @@ def main():
         batch_size=batch_size, shuffle=True, **kwargs)
 
     model = Net().to(device)
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     
     # Print model summary
     summary(model, input_size=(1, 28, 28))
 
     for epoch in range(1, 20):
         train(model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
+        accuracy = test(model, device, test_loader)
+        
+        # Early stopping condition
+        if accuracy >= BEST_TESTING_ACC:
+            print(f'\nReached target accuracy of {BEST_TESTING_ACC}% at epoch {epoch}')
+            break
     
     # Plot the training and testing metrics
     plot_metrics()
+    
+    # Print final status
+    if accuracy >= BEST_TESTING_ACC:
+        print(f'\nTraining completed successfully! Reached {accuracy:.2f}% accuracy')
+    else:
+        print(f'\nTraining completed without reaching target accuracy. Final accuracy: {accuracy:.2f}%')
 
 if __name__ == '__main__':
     # Add these global lists to store metrics
