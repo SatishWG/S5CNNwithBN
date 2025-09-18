@@ -6,6 +6,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from tqdm import tqdm
 from torchsummary import summary
+import matplotlib.pyplot as plt
 
 class Net(nn.Module):
     def __init__(self):
@@ -71,14 +72,27 @@ class Net(nn.Module):
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
     pbar = tqdm(train_loader)
+    train_loss = 0
+    correct = 0
+    processed = 0
+    
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
+        train_loss += loss.item()
         loss.backward()
         optimizer.step()
-        pbar.set_description(desc= f'epoch = {epoch} loss={loss.item()} batch_id={batch_idx}')
+        
+        pred = output.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target.view_as(pred)).sum().item()
+        processed += len(data)
+        
+        pbar.set_description(desc=f'epoch = {epoch} loss={loss.item()} batch_id={batch_idx}')
+    
+    train_losses.append(train_loss/len(train_loader))
+    train_acc.append(100. * correct/processed)
 
 def test(model, device, test_loader):
     model.eval()
@@ -93,9 +107,38 @@ def test(model, device, test_loader):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.4f}%)\n'.format(
+    test_losses.append(test_loss)
+    test_acc.append(100. * correct / len(test_loader.dataset))
+    
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
+
+def plot_metrics():
+    fig, axs = plt.subplots(2,2, figsize=(15,10))
+    
+    axs[0, 0].plot(train_losses)
+    axs[0, 0].set_title("Training Loss")
+    axs[0, 0].set_xlabel("Epoch")
+    axs[0, 0].set_ylabel("Loss")
+    
+    axs[1, 0].plot(train_acc)
+    axs[1, 0].set_title("Training Accuracy")
+    axs[1, 0].set_xlabel("Epoch")
+    axs[1, 0].set_ylabel("Accuracy")
+    
+    axs[0, 1].plot(test_losses)
+    axs[0, 1].set_title("Test Loss")
+    axs[0, 1].set_xlabel("Epoch")
+    axs[0, 1].set_ylabel("Loss")
+    
+    axs[1, 1].plot(test_acc)
+    axs[1, 1].set_title("Test Accuracy")
+    axs[1, 1].set_xlabel("Epoch")
+    axs[1, 1].set_ylabel("Accuracy")
+    
+    plt.tight_layout()
+    plt.show()
 
 def main():
     use_cuda = torch.cuda.is_available()
@@ -132,6 +175,15 @@ def main():
     for epoch in range(1, 20):
         train(model, device, train_loader, optimizer, epoch)
         test(model, device, test_loader)
+    
+    # Plot the training and testing metrics
+    plot_metrics()
 
 if __name__ == '__main__':
+    # Add these global lists to store metrics
+    train_losses = []
+    test_losses = []
+    train_acc = []
+    test_acc = []
+    
     main()
